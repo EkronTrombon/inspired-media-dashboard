@@ -9,6 +9,7 @@ import {
   Mic2,
   Search,
   TrendingUp,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -29,6 +30,10 @@ const socialNavItems: NavItem[] = [
 
 const searchNavItems: NavItem[] = [
   { label: "Trends & News", href: "/search", icon: Search },
+];
+
+const emailNavItems: NavItem[] = [
+  { label: "Email Summary", href: "/email", icon: Mail },
 ];
 
 function NavSection({
@@ -87,6 +92,8 @@ export function Sidebar() {
         <NavSection title="Social Media" items={socialNavItems} />
         <Separator className="my-2" />
         <NavSection title="Search" items={searchNavItems} />
+        <Separator className="my-2" />
+        <NavSection title="Email" items={emailNavItems} />
       </div>
     </aside>
   );
