@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Mail, Inbox, BellOff, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Mail, Inbox, BellOff, ShieldAlert, RefreshCw, Sparkles, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,189 +14,13 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import type { InboxEmail, PromotionalEmail, SpamEmail } from "@/lib/email-types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface InboxEmail {
-  id: string;
-  from: string;
-  email: string;
-  subject: string;
-  preview: string;
-  time: string;
-  date: string;
-  unread: boolean;
-}
+type LoadState<T> = { status: "idle" } | { status: "loading" } | { status: "ok"; data: T } | { status: "error"; message: string };
 
-interface SubscriptionEmail {
-  id: string;
-  from: string;
-  email: string;
-  subject: string;
-  preview: string;
-  date: string;
-  type: "Newsletter" | "Promotional" | "Product";
-  frequency: string;
-}
-
-interface SpamEmail {
-  id: string;
-  from: string;
-  subject: string;
-  preview: string;
-  date: string;
-}
-
-// ─── Placeholder data ─────────────────────────────────────────────────────────
-
-const inboxEmails: InboxEmail[] = [
-  {
-    id: "i1",
-    from: "Sarah Johnson",
-    email: "sarah.johnson@agency.com",
-    subject: "Q2 Content Strategy Review",
-    preview: "Hi Alyssa, I wanted to follow up on the content calendar we discussed last week and share some initial thoughts on the Q2 direction...",
-    time: "10:24 AM",
-    date: "Today",
-    unread: true,
-  },
-  {
-    id: "i2",
-    from: "Podcast Today",
-    email: "hello@podcasttoday.com",
-    subject: "Your episode hit 10K downloads! 🎉",
-    preview: "Congratulations! Episode 47 of your podcast has crossed 10,000 downloads — here's a breakdown of your listener data...",
-    time: "9:12 AM",
-    date: "Today",
-    unread: false,
-  },
-  {
-    id: "i3",
-    from: "Marcus Rivera",
-    email: "marcus@nikepartnerships.com",
-    subject: "Brand Partnership Opportunity — Spring Campaign",
-    preview: "Hi Alyssa, I'm reaching out on behalf of Nike to explore a potential collaboration for our upcoming Spring 2026 campaign...",
-    time: "4:30 PM",
-    date: "Yesterday",
-    unread: true,
-  },
-  {
-    id: "i4",
-    from: "Canva Team",
-    email: "noreply@canva.com",
-    subject: "New templates designed for content creators",
-    preview: "We've added 40+ new templates tailored for Instagram Reels covers, podcast episode artwork, and YouTube thumbnails...",
-    time: "2:15 PM",
-    date: "Yesterday",
-    unread: false,
-  },
-  {
-    id: "i5",
-    from: "Christina Martinez",
-    email: "christina@brandhouse.co",
-    subject: "April collab — are you available?",
-    preview: "Hey! Loved your last TikTok series. I'm working with a skincare brand that's a perfect fit and thought of you immediately...",
-    time: "11:05 AM",
-    date: "Mar 31, 2026",
-    unread: true,
-  },
-  {
-    id: "i6",
-    from: "Spotify for Podcasters",
-    email: "no-reply@spotifyforpodcasters.com",
-    subject: "Your March listener report is ready",
-    preview: "Here's your monthly summary: total streams, follower growth, top episodes, and audience demographics for March 2026...",
-    time: "8:00 AM",
-    date: "Mar 30, 2026",
-    unread: false,
-  },
-];
-
-const subscriptionEmails: SubscriptionEmail[] = [
-  {
-    id: "u1",
-    from: "Mailchimp",
-    email: "newsletter@mailchimp.com",
-    subject: "Your weekly email marketing insights 📈",
-    preview: "This week: open rate benchmarks by industry, the best time to send in 2026, and a deep-dive on re-engagement sequences...",
-    date: "2 days ago",
-    type: "Newsletter",
-    frequency: "Weekly",
-  },
-  {
-    id: "u2",
-    from: "Shopify Partners",
-    email: "partners@shopify.com",
-    subject: "Today's trending products for your audience",
-    preview: "Based on your niche, here are the top-selling products your followers are already buying — ready to promote...",
-    date: "3 days ago",
-    type: "Promotional",
-    frequency: "Daily",
-  },
-  {
-    id: "u3",
-    from: "HubSpot Blog",
-    email: "blog@hubspot.com",
-    subject: "The creator economy is changing — here's how",
-    preview: "New data from our State of Marketing 2026 report reveals a 38% increase in creator-led brand deals. What it means for you...",
-    date: "4 days ago",
-    type: "Newsletter",
-    frequency: "3× / week",
-  },
-  {
-    id: "u4",
-    from: "Typeform",
-    email: "digest@typeform.com",
-    subject: "New form templates + product updates",
-    preview: "We've added audience survey templates, a new logic branching feature, and integration with Notion — this week in Typeform...",
-    date: "5 days ago",
-    type: "Product",
-    frequency: "Weekly",
-  },
-  {
-    id: "u5",
-    from: "Later Social",
-    email: "hello@later.com",
-    subject: "This week in social media scheduling",
-    preview: "Instagram's new scheduling limits, TikTok's updated best-post times, and how to plan your content calendar for May...",
-    date: "6 days ago",
-    type: "Newsletter",
-    frequency: "Weekly",
-  },
-];
-
-const spamEmails: SpamEmail[] = [
-  {
-    id: "s1",
-    from: "promo@deals-unlimited.net",
-    subject: "YOU HAVE BEEN SELECTED!!!",
-    preview: "Congratulations! You've been personally selected for an exclusive opportunity. Click here to claim your reward before it expires...",
-    date: "Today",
-  },
-  {
-    id: "s2",
-    from: "noreply@free-iphone.win",
-    subject: "Claim your free iPhone 16 Pro — offer expires tonight",
-    preview: "As a valued customer you have been chosen to receive a complimentary iPhone 16 Pro. Complete the short survey to claim...",
-    date: "Yesterday",
-  },
-  {
-    id: "s3",
-    from: "info@investment-returns.biz",
-    subject: "Make $5,000/day working from home — guaranteed",
-    preview: "Our proprietary system has helped thousands achieve financial freedom. No experience needed. Start earning today...",
-    date: "Mar 31, 2026",
-  },
-  {
-    id: "s4",
-    from: "lottery@intl-prize.org",
-    subject: "URGENT: You have won £1,500,000 — claim now",
-    preview: "You have been selected as the winner of the International Digital Lottery. To claim your prize transfer a small processing fee...",
-    date: "Mar 30, 2026",
-  },
-];
-
-// ─── Helper ───────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function initials(name: string) {
   return name
@@ -207,32 +31,230 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-const typeColors: Record<SubscriptionEmail["type"], string> = {
+const typeColors: Record<PromotionalEmail["type"], string> = {
   Newsletter: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
   Promotional: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
-  Product: "bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300",
 };
+
+// ─── Skeleton row ─────────────────────────────────────────────────────────────
+
+function SkeletonRow() {
+  return (
+    <div className="flex items-start gap-4 px-6 py-4 animate-pulse">
+      <div className="h-9 w-9 shrink-0 rounded-full bg-muted" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="h-3 w-1/3 rounded bg-muted" />
+        <div className="h-3 w-1/2 rounded bg-muted" />
+        <div className="h-3 w-2/3 rounded bg-muted" />
+      </div>
+      <div className="h-8 w-20 shrink-0 rounded bg-muted" />
+    </div>
+  );
+}
+
+// ─── Error state ──────────────────────────────────────────────────────────────
+
+function ErrorRow({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+      <p className="text-sm text-destructive">{message}</p>
+      <button
+        onClick={onRetry}
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2")}
+      >
+        <RefreshCw className="h-3.5 w-3.5" />
+        Retry
+      </button>
+    </div>
+  );
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EmailPage() {
+  // ── Fetch state ──
+  const [inbox, setInbox] = useState<LoadState<InboxEmail[]>>({ status: "idle" });
+  const [promos, setPromos] = useState<LoadState<PromotionalEmail[]>>({ status: "idle" });
+  const [spam, setSpam] = useState<LoadState<SpamEmail[]>>({ status: "idle" });
+
+  // ── Draft reply sheet ──
   const [draftEmail, setDraftEmail] = useState<InboxEmail | null>(null);
   const [draftText, setDraftText] = useState("");
+  const [draftGenerating, setDraftGenerating] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  // ── Optimistic action sets ──
   const [unsubscribed, setUnsubscribed] = useState<Set<string>>(new Set());
+  const [unsubscribing, setUnsubscribing] = useState<Set<string>>(new Set());
   const [removedSpam, setRemovedSpam] = useState<Set<string>>(new Set());
+
+  // ── Data fetchers ──
+
+  const fetchInbox = useCallback(async () => {
+    setInbox({ status: "loading" });
+    try {
+      const res = await fetch("/api/email/inbox");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      setInbox({ status: "ok", data: await res.json() });
+    } catch (e) {
+      setInbox({ status: "error", message: (e as Error).message });
+    }
+  }, []);
+
+  const fetchPromos = useCallback(async () => {
+    setPromos({ status: "loading" });
+    try {
+      const res = await fetch("/api/email/promotions");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      setPromos({ status: "ok", data: await res.json() });
+    } catch (e) {
+      setPromos({ status: "error", message: (e as Error).message });
+    }
+  }, []);
+
+  const fetchSpam = useCallback(async () => {
+    setSpam({ status: "loading" });
+    try {
+      const res = await fetch("/api/email/spam");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      setSpam({ status: "ok", data: await res.json() });
+    } catch (e) {
+      setSpam({ status: "error", message: (e as Error).message });
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchInbox();
+    fetchPromos();
+    fetchSpam();
+  }, [fetchInbox, fetchPromos, fetchSpam]);
+
+  // ── Derived counts ──
+
+  const inboxEmails = inbox.status === "ok" ? inbox.data : [];
+  const promoEmails = promos.status === "ok" ? promos.data : [];
+  const spamEmails = spam.status === "ok" ? spam.data : [];
 
   const unreadCount = inboxEmails.filter((e) => e.unread).length;
   const visibleSpam = spamEmails.filter((e) => !removedSpam.has(e.id));
+  const visiblePromos = promoEmails.filter((e) => !unsubscribed.has(e.id));
+
+  // ── Draft reply ──
 
   function openDraft(email: InboxEmail) {
     setDraftText("");
+    setSendError(null);
     setDraftEmail(email);
   }
 
   function closeDraft() {
     setDraftEmail(null);
     setDraftText("");
+    setSendError(null);
   }
+
+  async function generateDraft() {
+    if (!draftEmail) return;
+    setDraftGenerating(true);
+    try {
+      const res = await fetch("/api/email/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: `${draftEmail.from} <${draftEmail.email}>`,
+          subject: draftEmail.subject,
+          preview: draftEmail.preview,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to generate draft");
+      setDraftText(body.draft);
+    } catch (e) {
+      setDraftText("");
+      setSendError((e as Error).message);
+    } finally {
+      setDraftGenerating(false);
+    }
+  }
+
+  async function sendReply() {
+    if (!draftEmail || !draftText.trim()) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const res = await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: draftEmail.email,
+          subject: draftEmail.subject,
+          inReplyTo: draftEmail.messageId,
+          threadId: draftEmail.threadId,
+          body: draftText,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to send");
+      closeDraft();
+    } catch (e) {
+      setSendError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // ── Unsubscribe ──
+
+  async function handleUnsubscribe(email: PromotionalEmail) {
+    setUnsubscribing((prev) => new Set([...prev, email.id]));
+    try {
+      const res = await fetch(`/api/email/${email.id}/unsubscribe`, { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.warn("Unsubscribe failed:", body.error);
+      }
+      // Optimistically remove regardless — unsubscribe requests are best-effort
+      setUnsubscribed((prev) => new Set([...prev, email.id]));
+    } finally {
+      setUnsubscribing((prev) => {
+        const next = new Set(prev);
+        next.delete(email.id);
+        return next;
+      });
+    }
+  }
+
+  // ── Spam actions ──
+
+  async function handleNotSpam(id: string) {
+    setRemovedSpam((prev) => new Set([...prev, id])); // optimistic
+    try {
+      await fetch(`/api/email/${id}/not-spam`, { method: "POST" });
+    } catch {
+      // silent — optimistic update already applied
+    }
+  }
+
+  async function handleTrash(id: string) {
+    setRemovedSpam((prev) => new Set([...prev, id])); // optimistic
+    try {
+      await fetch(`/api/email/${id}/trash`, { method: "POST" });
+    } catch {
+      // silent — optimistic update already applied
+    }
+  }
+
+  // ── Render ──
 
   return (
     <div className="space-y-6">
@@ -253,17 +275,25 @@ export default function EmailPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border bg-card p-5 shadow-sm">
           <p className="text-sm font-medium text-muted-foreground">Unread</p>
-          <p className="mt-1 text-3xl font-bold">{unreadCount}</p>
-          <p className="mt-1 text-xs text-muted-foreground">of {inboxEmails.length} inbox emails</p>
+          <p className="mt-1 text-3xl font-bold">
+            {inbox.status === "loading" ? "—" : unreadCount}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {inbox.status === "ok" ? `of ${inboxEmails.length} inbox emails` : "last 7 days"}
+          </p>
         </div>
         <div className="rounded-xl border bg-card p-5 shadow-sm">
           <p className="text-sm font-medium text-muted-foreground">Unsubscribe Suggestions</p>
-          <p className="mt-1 text-3xl font-bold">{subscriptionEmails.length - unsubscribed.size}</p>
+          <p className="mt-1 text-3xl font-bold">
+            {promos.status === "loading" ? "—" : visiblePromos.length}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">from the last 7 days</p>
         </div>
         <div className="rounded-xl border bg-card p-5 shadow-sm">
           <p className="text-sm font-medium text-muted-foreground">Spam to Review</p>
-          <p className="mt-1 text-3xl font-bold">{visibleSpam.length}</p>
+          <p className="mt-1 text-3xl font-bold">
+            {spam.status === "loading" ? "—" : visibleSpam.length}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">emails in spam folder</p>
         </div>
       </div>
@@ -303,7 +333,18 @@ export default function EmailPage() {
               <p className="text-sm text-muted-foreground">Your most recent emails</p>
             </div>
             <div className="divide-y">
-              {inboxEmails.map((email) => (
+              {inbox.status === "loading" && (
+                <>{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</>
+              )}
+              {inbox.status === "error" && (
+                <ErrorRow message={inbox.message} onRetry={fetchInbox} />
+              )}
+              {inbox.status === "ok" && inboxEmails.length === 0 && (
+                <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+                  No emails in the last 7 days.
+                </div>
+              )}
+              {inbox.status === "ok" && inboxEmails.map((email) => (
                 <div
                   key={email.id}
                   className={cn(
@@ -311,12 +352,9 @@ export default function EmailPage() {
                     email.unread && "bg-muted/20"
                   )}
                 >
-                  {/* Avatar */}
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                     {initials(email.from)}
                   </div>
-
-                  {/* Content */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className={cn("text-sm", email.unread ? "font-semibold" : "font-medium")}>
@@ -336,14 +374,9 @@ export default function EmailPage() {
                       {email.preview}
                     </p>
                   </div>
-
-                  {/* Action */}
                   <button
                     onClick={() => openDraft(email)}
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                      "shrink-0"
-                    )}
+                    className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
                   >
                     Draft Reply
                   </button>
@@ -363,24 +396,29 @@ export default function EmailPage() {
               </p>
             </div>
             <div className="divide-y">
-              {subscriptionEmails.map((email) => {
-                const done = unsubscribed.has(email.id);
+              {promos.status === "loading" && (
+                <>{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</>
+              )}
+              {promos.status === "error" && (
+                <ErrorRow message={promos.message} onRetry={fetchPromos} />
+              )}
+              {promos.status === "ok" && visiblePromos.length === 0 && (
+                <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+                  No promotional emails to review.
+                </div>
+              )}
+              {promos.status === "ok" && visiblePromos.map((email) => {
+                const isBusy = unsubscribing.has(email.id);
                 return (
                   <div key={email.id} className="flex items-start gap-4 px-6 py-4">
-                    {/* Avatar */}
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
                       {initials(email.from)}
                     </div>
-
-                    {/* Content */}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium">{email.from}</span>
                         <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", typeColors[email.type])}>
                           {email.type}
-                        </span>
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                          {email.frequency}
                         </span>
                         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                           {email.date}
@@ -389,24 +427,17 @@ export default function EmailPage() {
                       <p className="text-sm text-muted-foreground">{email.subject}</p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">{email.preview}</p>
                     </div>
-
-                    {/* Action */}
                     <button
-                      onClick={() =>
-                        setUnsubscribed((prev) => {
-                          const next = new Set(prev);
-                          next.add(email.id);
-                          return next;
-                        })
-                      }
-                      disabled={done}
+                      onClick={() => handleUnsubscribe(email)}
+                      disabled={isBusy}
                       className={cn(
-                        buttonVariants({ variant: done ? "ghost" : "outline", size: "sm" }),
-                        "shrink-0",
-                        done && "cursor-default text-muted-foreground"
+                        buttonVariants({ variant: "outline", size: "sm" }),
+                        "shrink-0 gap-1.5",
+                        isBusy && "cursor-default opacity-60"
                       )}
                     >
-                      {done ? "Unsubscribed ✓" : "Unsubscribe"}
+                      {isBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      {isBusy ? "Unsubscribing…" : "Unsubscribe"}
                     </button>
                   </div>
                 );
@@ -424,20 +455,26 @@ export default function EmailPage() {
                 Review emails flagged as spam — move legit ones back to inbox
               </p>
             </div>
-            {visibleSpam.length === 0 ? (
+            {spam.status === "loading" && (
+              <div className="divide-y">
+                {Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}
+              </div>
+            )}
+            {spam.status === "error" && (
+              <ErrorRow message={spam.message} onRetry={fetchSpam} />
+            )}
+            {spam.status === "ok" && visibleSpam.length === 0 && (
               <div className="px-6 py-12 text-center text-sm text-muted-foreground">
                 No spam emails to review.
               </div>
-            ) : (
+            )}
+            {spam.status === "ok" && visibleSpam.length > 0 && (
               <div className="divide-y">
                 {visibleSpam.map((email) => (
                   <div key={email.id} className="flex items-start gap-4 px-6 py-4">
-                    {/* Avatar */}
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-xs font-semibold text-destructive">
                       {email.from[0].toUpperCase()}
                     </div>
-
-                    {/* Content */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-medium">{email.from}</span>
@@ -448,22 +485,19 @@ export default function EmailPage() {
                       <p className="text-sm text-muted-foreground">{email.subject}</p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">{email.preview}</p>
                     </div>
-
-                    {/* Actions */}
                     <div className="flex shrink-0 gap-2">
                       <button
-                        onClick={() =>
-                          setRemovedSpam((prev) => new Set([...prev, email.id]))
-                        }
+                        onClick={() => handleNotSpam(email.id)}
                         className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                       >
                         Not Spam
                       </button>
                       <button
-                        onClick={() =>
-                          setRemovedSpam((prev) => new Set([...prev, email.id]))
-                        }
-                        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-destructive hover:text-destructive")}
+                        onClick={() => handleTrash(email.id)}
+                        className={cn(
+                          buttonVariants({ variant: "ghost", size: "sm" }),
+                          "text-destructive hover:text-destructive"
+                        )}
                       >
                         Delete
                       </button>
@@ -487,27 +521,42 @@ export default function EmailPage() {
           </SheetHeader>
 
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-            {/* AI notice */}
-            <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-              AI drafting will be available once the Claude API is connected. Type your reply manually below.
-            </div>
+            {/* AI generate button */}
+            <button
+              onClick={generateDraft}
+              disabled={draftGenerating}
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "w-full gap-2",
+                draftGenerating && "cursor-default opacity-60"
+              )}
+            >
+              {draftGenerating
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Generating…</>
+                : <><Sparkles className="h-3.5 w-3.5" />Generate AI Draft</>
+              }
+            </button>
 
             {/* Original email preview */}
             <div className="rounded-lg border bg-muted/20 px-4 py-3">
-              <p className="mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Original message
               </p>
-              <p className="text-xs text-muted-foreground line-clamp-3">{draftEmail?.preview}</p>
+              <p className="line-clamp-3 text-xs text-muted-foreground">{draftEmail?.preview}</p>
             </div>
 
             {/* Compose area */}
             <textarea
               value={draftText}
               onChange={(e) => setDraftText(e.target.value)}
-              placeholder="Write your reply here..."
+              placeholder="Write your reply here, or click Generate AI Draft above…"
               rows={8}
               className="w-full flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
+
+            {sendError && (
+              <p className="text-xs text-destructive">{sendError}</p>
+            )}
           </div>
 
           <SheetFooter className="border-t p-4">
@@ -519,11 +568,16 @@ export default function EmailPage() {
                 Discard
               </button>
               <button
-                disabled
-                className={cn(buttonVariants({ variant: "default", size: "sm" }), "ml-auto cursor-not-allowed opacity-60")}
-                title="Connect Gmail to send emails"
+                onClick={sendReply}
+                disabled={sending || !draftText.trim()}
+                className={cn(
+                  buttonVariants({ variant: "default", size: "sm" }),
+                  "ml-auto gap-2",
+                  (sending || !draftText.trim()) && "cursor-not-allowed opacity-60"
+                )}
               >
-                Send
+                {sending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {sending ? "Sending…" : "Send"}
               </button>
             </div>
           </SheetFooter>
