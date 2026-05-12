@@ -1,13 +1,17 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { useSession, signOut } from "next-auth/react";
 import { Sun, Moon, Bell } from "lucide-react";
+import { hasRole } from "@/lib/auth-roles";
 import { buttonVariants } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -16,8 +20,25 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+function initialsFor(name?: string | null, email?: string | null): string {
+  const source = name?.trim() || email?.trim() || "";
+  if (!source) return "?";
+  const parts = source.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return source.slice(0, 2).toUpperCase();
+}
+
 export function Topbar() {
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { data: session } = useSession();
+
+  const userName = session?.user?.name ?? "";
+  const userEmail = session?.user?.email ?? "";
+  const userImage = session?.user?.image ?? "";
+  const userRole = session?.user?.role;
 
   return (
     <header className="flex h-14 items-center justify-between border-b bg-background px-6">
@@ -60,26 +81,28 @@ export function Topbar() {
             </Badge>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72">
-            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-medium">Instagram post scheduled</p>
-                <p className="text-xs text-muted-foreground">2 minutes ago</p>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-medium">TikTok video published</p>
-                <p className="text-xs text-muted-foreground">1 hour ago</p>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-medium">New podcast episode live</p>
-                <p className="text-xs text-muted-foreground">3 hours ago</p>
-              </div>
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-medium">Instagram post scheduled</p>
+                  <p className="text-xs text-muted-foreground">2 minutes ago</p>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-medium">TikTok video published</p>
+                  <p className="text-xs text-muted-foreground">1 hour ago</p>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-medium">New podcast episode live</p>
+                  <p className="text-xs text-muted-foreground">3 hours ago</p>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -89,17 +112,43 @@ export function Topbar() {
             aria-label="User menu"
           >
             <Avatar className="h-8 w-8">
-              <AvatarImage src="" alt="User avatar" />
-              <AvatarFallback className="text-xs">AL</AvatarFallback>
+              <AvatarImage src={userImage} alt={userName || userEmail || "User avatar"} />
+              <AvatarFallback className="text-xs">
+                {initialsFor(userName, userEmail)}
+              </AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Sign out</DropdownMenuItem>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium">{userName || "Signed in"}</span>
+                  {userEmail ? (
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {userEmail}
+                    </span>
+                  ) : null}
+                  {userRole ? (
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      {userRole}
+                    </span>
+                  ) : null}
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/profile")}>
+                Profile
+              </DropdownMenuItem>
+              {hasRole(userRole, ["admin"]) ? (
+                <DropdownMenuItem onClick={() => router.push("/settings/users")}>
+                  Users & settings
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

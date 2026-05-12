@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   LayoutDashboard,
   Camera,
@@ -10,14 +11,17 @@ import {
   Search,
   TrendingUp,
   Mail,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { hasRole, type Role } from "@/lib/auth-roles";
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  roles?: Role[];
 }
 
 const socialNavItems: NavItem[] = [
@@ -33,17 +37,36 @@ const searchNavItems: NavItem[] = [
 ];
 
 const emailNavItems: NavItem[] = [
-  { label: "Email Summary", href: "/email", icon: Mail },
+  {
+    label: "Email Summary",
+    href: "/email",
+    icon: Mail,
+    roles: ["admin", "editor"],
+  },
+];
+
+const settingsNavItems: NavItem[] = [
+  {
+    label: "Users",
+    href: "/settings/users",
+    icon: Users,
+    roles: ["admin"],
+  },
 ];
 
 function NavSection({
   title,
   items,
+  role,
 }: {
   title: string;
   items: NavItem[];
+  role: Role | undefined;
 }) {
   const pathname = usePathname();
+
+  const visible = items.filter((item) => hasRole(role, item.roles));
+  if (visible.length === 0) return null;
 
   return (
     <div className="px-3 py-2">
@@ -51,7 +74,7 @@ function NavSection({
         {title}
       </p>
       <nav className="space-y-1">
-        {items.map((item) => {
+        {visible.map((item) => {
           const Icon = item.icon;
           const isActive =
             item.href === "/social"
@@ -80,20 +103,39 @@ function NavSection({
 }
 
 export function Sidebar() {
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+
+  const showEmail = emailNavItems.some((item) => hasRole(role, item.roles));
+  const showSettings = settingsNavItems.some((item) => hasRole(role, item.roles));
+
   return (
     <aside className="flex h-full w-60 flex-col border-r bg-sidebar">
-      <div className="flex h-14 items-center border-b px-5" style={{ borderColor: "var(--sidebar-border)" }}>
+      <div
+        className="flex h-14 items-center border-b px-5"
+        style={{ borderColor: "var(--sidebar-border)" }}
+      >
         <span className="font-heading text-lg font-semibold tracking-wide text-sidebar-foreground">
           Inspired Media
         </span>
       </div>
 
       <div className="flex-1 overflow-y-auto py-2">
-        <NavSection title="Social Media" items={socialNavItems} />
+        <NavSection title="Social Media" items={socialNavItems} role={role} />
         <Separator className="my-2" />
-        <NavSection title="Search" items={searchNavItems} />
-        <Separator className="my-2" />
-        <NavSection title="Email" items={emailNavItems} />
+        <NavSection title="Search" items={searchNavItems} role={role} />
+        {showEmail ? (
+          <>
+            <Separator className="my-2" />
+            <NavSection title="Email" items={emailNavItems} role={role} />
+          </>
+        ) : null}
+        {showSettings ? (
+          <>
+            <Separator className="my-2" />
+            <NavSection title="Settings" items={settingsNavItems} role={role} />
+          </>
+        ) : null}
       </div>
     </aside>
   );
